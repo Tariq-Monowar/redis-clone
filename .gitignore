@@ -1,0 +1,7 @@
+miniredis-server
+miniredis-cli
+miniredis-server.exe
+miniredis-cli.exe
+*.o
+/build
+/cmake-build-*

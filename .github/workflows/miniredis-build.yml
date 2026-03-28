@@ -1,0 +1,72 @@
+name: Build MiniRedis
+
+on:
+  push:
+    paths:
+      - '**'
+      - '.github/workflows/miniredis-build.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: miniredis-linux-x64
+          - os: macos-latest
+            artifact: miniredis-macos-universal
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install zip (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Build (Make)
+        run: make clean && make
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp miniredis-server miniredis-cli dist/
+          cd dist && zip -r "../${{ matrix.artifact }}.zip" miniredis-server miniredis-cli
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+
+      - name: Build (MinGW Make)
+        shell: msys2 {0}
+        run: mingw32-make clean && mingw32-make
+
+      - name: Package (zip via PowerShell)
+        shell: pwsh
+        run: |
+          $a = @('miniredis-server.exe', 'miniredis-cli.exe') | Where-Object { Test-Path $_ }
+          if ($a.Count -eq 0) { $a = @('miniredis-server', 'miniredis-cli') }
+          Compress-Archive -Path $a -DestinationPath miniredis-windows-x64.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: miniredis-windows-x64
+          path: miniredis-windows-x64.zip
